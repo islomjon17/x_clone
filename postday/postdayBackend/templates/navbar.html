@@ -1,0 +1,99 @@
+{% load static %}
+
+<nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
+  <div class="container">
+    <a class="navbar-brand fw-bold text-primary" href="{% url 'home' %}">
+      Post 17
+    </a>
+
+    <button
+      class="navbar-toggler"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#navbarSupportedContent"
+    >
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <a
+            class="nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}"
+            href="{% url 'home' %}"
+          >
+            Home
+          </a>
+        </li>
+        <li class="nav-item">
+          <a
+            class="nav-link {% if request.resolver_match.url_name == 'profile_list' %}active{% endif %}"
+            href="{% url 'profile_list' %}"
+          >
+            Profile List
+          </a>
+        </li>
+      </ul>
+
+      <ul class="navbar-nav ms-auto align-items-center">
+        {% if user.is_authenticated %}
+
+        <li class="nav-item me-3 text-muted small d-none d-lg-block">
+          Salom, {{ user.username }}!
+        </li>
+
+        <li class="nav-item me-3">
+          <a
+            href="{% url 'profile' request.user.id %}"
+            class="d-flex align-items-center"
+          >
+            {% if user.profile.profile_image %}
+            <img
+              src="{{ user.profile.profile_image.url }}"
+              class="rounded-circle me-2"
+              width="50"
+              height="50"
+              style="object-fit: cover"
+            />
+            {% else %}
+            <img
+              src="{% static 'images/image1.png' %}"
+              class="rounded-circle me-2"
+              width="50"
+              height="50"
+              style="object-fit: cover"
+            />
+            {% endif %}
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a
+            class="btn btn-outline-danger btn-sm px-3"
+            href="{% url 'logout' %}"
+          >
+            Chiqish
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'chat:inbox' %}" class="nav-link"> 💬 Messages </a>
+        </li>
+
+        {% else %}
+
+        <li class="nav-item me-2">
+          <a class="btn btn-outline-primary btn-sm" href="{% url 'login' %}">
+            Login
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="btn btn-primary btn-sm" href="{% url 'signup' %}">
+            Sign up
+          </a>
+        </li>
+
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>

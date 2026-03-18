@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-sm mx-auto" style="max-width: 650px; border-radius: 15px; overflow: hidden;">
+        
+        <div class="card-header bg-white py-3 border-bottom-0 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <h5 class="mb-0 fw-bold text-dark">Chat</h5>
+            </div>
+            <a href="{% url 'chat:inbox' %}" class="btn btn-light btn-sm rounded-pill px-3 border">
+                <i class="fas fa-chevron-left me-1"></i> Orqaga
+            </a>
+        </div>
+
+        <div class="card-body" id="chat-window" style="height: 500px; overflow-y: auto; background-color: #f7f9fb; padding: 20px;">
+            {% if conversation.messages.all %}
+                {% for message in conversation.messages.all %}
+                    <div class="d-flex {% if message.sender == user %}justify-content-end{% else %}justify-content-start{% endif %} mb-3">
+                        <div class="shadow-sm {% if message.sender == user %}bg-primary text-white{% else %}bg-white text-dark{% endif %}" 
+                             style="max-width: 75%; padding: 10px 15px; border-radius: 18px; position: relative;">
+                            
+                            {% if message.reply_to %}
+                            <div class="p-2 mb-2 rounded border-start border-3" 
+                                 style="background: rgba(0,0,0,0.06); border-color: {% if message.sender == user %}#ffffff{% else %}#0d6efd{% endif %} !important;">
+                                <small class="d-block fw-bold" style="font-size: 0.75rem; opacity: 0.9;">
+                                    {% if message.reply_to.sender == user %}Siz{% else %}@{{ message.reply_to.sender.username }}{% endif %}
+                                </small>
+                                <small class="text-truncate d-block" style="font-size: 0.8rem; opacity: 0.8;">
+                                    {{ message.reply_to.text|truncatechars:45 }}
+                                </small>
+                            </div>
+                            {% endif %}
+
+                            <div style="font-size: 0.95rem; word-wrap: break-word;">
+                                {{ message.text }}
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-2" style="min-width: 100px;">
+                                <small style="font-size: 0.65rem; opacity: 0.7;">
+                                    {{ message.created_at|date:"H:i" }}
+                                </small>
+                                
+                                <button onclick="setReply('{{ message.id }}', '{% if message.sender == user %}O\'zingiz{% else %}{{ message.sender.username }}{% endif %}', '{{ message.text|addslashes }}')" 
+                                        class="btn btn-sm p-0 border-0 {% if message.sender == user %}text-white-50{% else %}text-primary{% endif %}" 
+                                        style="font-size: 0.7rem; font-weight: 500;">
+                                    Reply
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="h-100 d-flex flex-column align-items-center justify-content-center text-muted">
+                    <i class="far fa-paper-plane fa-3x mb-3 opacity-25"></i>
+                    <p>Hozircha xabarlar yo'q. Birinchi bo'lib yozing!</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div id="typing-status" class="px-3 text-muted" style="font-size: 0.8rem; height: 25px; font-style: italic; background-color: #f7f9fb; line-height: 25px;"></div>
+
+        <div id="reply-preview" class="px-3 py-2 bg-light border-top d-none animate__animated animate__fadeInUp" style="border-left: 5px solid #0d6efd;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="overflow-hidden">
+                    <small class="fw-bold text-primary d-block" id="reply-user-display"></small>
+                    <small class="text-muted text-truncate d-block" id="reply-text-display"></small>
+                </div>
+                <button type="button" class="btn-close ms-2" onclick="cancelReply()" style="font-size: 0.7rem;"></button>
+            </div>
+        </div>
+
+        <div class="card-footer bg-white py-3 border-0">
+            <form id="chat-form">
+                {% csrf_token %}
+                <input type="hidden" id="reply-id-input">
+                
+                <div class="input-group bg-light rounded-pill px-2 py-1 shadow-sm">
+                    <input
+                        type="text"
+                        id="message-input"
+                        class="form-control border-0 bg-transparent py-2"
+                        placeholder="Xabar yozing..."
+                        required
+                        autocomplete="off"
+                    />
+                    <button class="btn btn-primary rounded-circle d-flex align-items-center justify-content-center mt-1 me-1" 
+                            type="submit" style="width: 38px; height: 38px;">
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const chatWindow = document.getElementById("chat-window");
+    const chatForm = document.getElementById("chat-form");
+    const messageInput = document.getElementById("message-input");
+    const replyInput = document.getElementById("reply-id-input");
+    const typingStatus = document.getElementById("typing-status");
+
+    const conversationId = "{{ conversation.id }}";
+    const currentUserId = "{{ request.user.id }}";
+    const currentUserUsername = "{{ request.user.username }}";
+
+    const wsStart = window.location.protocol === "https:" ? "wss://" : "ws://";
+    const chatSocket = new WebSocket(
+        wsStart + window.location.host + "/ws/chat/" + conversationId + "/"
+    );
+
+    // Sahifa yuklanganda pastga tushish
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+
+    // 1. WebSocket xabarlarini qabul qilish
+    chatSocket.onmessage = function (e) {
+        const data = JSON.parse(e.data);
+
+        // Typing status kelganda
+        if (data.type === "chat_typing") {
+            if (data.sender_name !== currentUserUsername) {
+                typingStatus.innerText = data.typing ? data.sender_name + " yozmoqda..." : "";
+            }
+        } 
+        // Oddiy xabar kelganda
+        else if (data.type === "chat_message") {
+            if (data.sender_id != currentUserId) {
+                renderMessage(data, false);
+            }
+            typingStatus.innerText = ""; // Xabar kelganda yozuvni o'chirish
+        }
+    };
+
+    // 2. Typing status yuborish
+    let typingTimer;
+    messageInput.addEventListener("input", function () {
+        chatSocket.send(JSON.stringify({
+            'type': 'typing',
+            'typing': true,
+        }));
+
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(function () {
+            chatSocket.send(JSON.stringify({
+                'type': 'typing',
+                'typing': false,
+            }));
+        }, 2000);
+    });
+
+    // 3. Xabar yuborish
+    chatForm.onsubmit = function (e) {
+        e.preventDefault();
+        const message = messageInput.value;
+        const replyId = replyInput.value;
+        const replyText = document.getElementById("reply-text-display").innerText;
+
+        if (message.trim() === "") return;
+
+        // Optimistic UI: Ekranga darhol chiqarish
+        const tempData = {
+            message: message,
+            sender_id: currentUserId,
+            created_at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            reply_to_text: replyId ? replyText : null,
+            is_optimistic: true,
+        };
+        renderMessage(tempData, true);
+
+        // Serverga yuborish
+        chatSocket.send(JSON.stringify({
+            'message': message,
+            'reply_id': replyId,
+        }));
+
+        messageInput.value = "";
+        cancelReply();
+        
+        // Yozish to'xtaganini darhol bildirish
+        chatSocket.send(JSON.stringify({ 'type': 'typing', 'typing': false }));
+    };
+
+    // 4. Xabarni HTMLga chiqarish funksiyasi
+    function renderMessage(data, isMine) {
+        const isActuallyMine = data.sender_id == currentUserId;
+        const opacity = data.is_optimistic ? 'style="opacity: 0.7;"' : "";
+        let replyHtml = "";
+        
+        if (data.reply_to_text) {
+            replyHtml = `
+                <div class="p-2 mb-2 rounded border-start border-3" style="background: rgba(0,0,0,0.06); border-color: ${isActuallyMine ? "#ffffff" : "#0d6efd"} !important;">
+                    <small class="text-truncate d-block" style="font-size: 0.8rem; opacity: 0.8;">${data.reply_to_text}</small>
+                </div>`;
+        }
+
+        const messageHtml = `
+            <div class="d-flex ${isActuallyMine ? "justify-content-end" : "justify-content-start"} mb-3 animate__animated animate__fadeInUp" ${opacity}>
+                <div class="shadow-sm ${isActuallyMine ? "bg-primary text-white" : "bg-white text-dark"}" style="max-width: 75%; padding: 10px 15px; border-radius: 18px;">
+                    ${replyHtml}
+                    <div style="font-size: 0.95rem; word-wrap: break-word;">${data.message}</div>
+                    <div class="d-flex justify-content-between align-items-center mt-2" style="min-width: 100px;">
+                        <small style="font-size: 0.65rem; opacity: 0.7;">${data.created_at}</small>
+                        ${!isActuallyMine ? `<button class="btn btn-sm p-0 border-0 text-primary" style="font-size: 0.7rem;">Reply</button>` : ""}
+                    </div>
+                </div>
+            </div>`;
+
+        chatWindow.insertAdjacentHTML("beforeend", messageHtml);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    function setReply(id, username, text) {
+        document.getElementById('reply-id-input').value = id;
+        document.getElementById('reply-user-display').innerText = "Javob: @" + username;
+        let cleanText = text.replace(/(\r\n|\n|\r)/gm, " ");
+        document.getElementById('reply-text-display').innerText = cleanText.length > 50 ? cleanText.substring(0, 50) + "..." : cleanText;
+        document.getElementById('reply-preview').classList.remove('d-none');
+        messageInput.focus();
+    }
+
+    function cancelReply() {
+        replyInput.value = "";
+        document.getElementById('reply-preview').classList.add('d-none');
+    }
+</script>
+
+<style>
+    #chat-window::-webkit-scrollbar {
+        width: 5px;
+    }
+    #chat-window::-webkit-scrollbar-thumb {
+        background: #e0e0e0;
+        border-radius: 10px;
+    }
+    .text-white-50:hover {
+        color: white !important;
+        text-decoration: underline !important;
+    }
+    #typing-status:empty {
+        display: none;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends 'base.html' %} {% load static %} {% block content %}
+
+<form method="POST">
+  {% csrf_token %}
+
+  <div class="mb-3">
+    <label class="form-label small font-weight-bold">Post matni</label>
+    <textarea
+      name="body"
+      class="form-control"
+      rows="3"
+      placeholder="Post matnini kiriting..."
+    >{{ post.body }}</textarea>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label small font-weight-bold">Yaratilgan vaqt</label>
+    <input
+      type="datetime-local"
+      name="created_at"
+      value="{{ post.created_at|date:'Y-m-d\\TH:i' }}"
+      class="form-control"
+    />
+  </div>
+
+  <button type="submit" class="btn btn-primary w-100 py-2">
+    O'zgarishlarni saqlash
+  </button>
+</form>
+{% endblock %}

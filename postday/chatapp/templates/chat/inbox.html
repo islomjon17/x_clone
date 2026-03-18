@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+  <div class="card shadow-sm">
+
+```
+<!-- HEADER -->
+<div class="card-header bg-light">
+  <h4 class="mb-0">💬 Messages</h4>
+</div>
+
+<!-- CHAT LIST -->
+<div class="list-group list-group-flush">
+
+  {% if conversations %}
+
+    {% for chat in conversations %}
+
+      <a href="{% url 'chat:chat' chat.id %}" 
+         class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+
+        <div>
+
+          <!-- OTHER USER NAME -->
+          {% for user in chat.participants.all %}
+            {% if user != request.user %}
+              <strong>@{{ user.username }}</strong>
+            {% endif %}
+          {% endfor %}
+
+          <div class="small text-muted">
+            Chatni ochish uchun bosing
+          </div>
+
+        </div>
+
+        <small class="text-muted">
+          {{ chat.created_at|date:"d M" }}
+        </small>
+
+      </a>
+
+    {% endfor %}
+
+  {% else %}
+
+    <div class="p-4 text-center text-muted">
+      Sizda hali xabarlar yo‘q
+    </div>
+
+  {% endif %}
+
+</div>
+```
+
+  </div>
+
+</div>
+
+{% endblock %}

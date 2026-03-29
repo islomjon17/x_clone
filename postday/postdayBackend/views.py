@@ -24,7 +24,6 @@ from .forms import (
 )
 
 
-
 class HomeView(View):
 
     def get(self, request):
@@ -35,13 +34,11 @@ class HomeView(View):
         users = User.objects.none()
 
         if query:
-            posts = PostNews.objects.filter(
-                body__icontains=query
-            ).order_by("-created_at")
-
-            users = User.objects.filter(
-                username__icontains=query
+            posts = PostNews.objects.filter(body__icontains=query).order_by(
+                "-created_at"
             )
+
+            users = User.objects.filter(username__icontains=query)
 
         else:
             posts = PostNews.objects.all().order_by("-created_at")
@@ -74,11 +71,11 @@ class HomeView(View):
         }
         return render(request, "home2.html", context)
 
+
 class PostShowView(View):
     def get(self, request, pk):
         post = get_object_or_404(PostNews, id=pk)
         return render(request, "pages/post_show.html", {"post": post})
-
 
 
 ###################################
@@ -148,6 +145,8 @@ class ProfileView(View):
 ###################################
 class UserLoginView(View):
     def get(self, request):
+        if request.user.is_authenticated:
+            return redirect("home")  # Allaqachon kirgan bo'lsa
         form = LoginForm()
         return render(request, "pages/auth/login.html", {"form": form})
 
@@ -157,7 +156,6 @@ class UserLoginView(View):
             login(request, form.user)
             messages.success(request, "Muvaffaqiyatli tizimga kirdingiz")
             return redirect("home")
-
         return render(request, "pages/auth/login.html", {"form": form})
 
 
@@ -190,7 +188,6 @@ class UserLogoutView(View):
         return redirect("home")
 
 
-
 class UserUpdateView(View):
     def get(self, request):
         if not request.user.is_authenticated:
@@ -206,9 +203,9 @@ class UserUpdateView(View):
             request,
             "pages/update/update_user.html",
             {
-                "user_form": user_form, 
+                "user_form": user_form,
                 "profile_form": profile_form,
-                "profile_pic_form": profile_pic_form
+                "profile_pic_form": profile_pic_form,
             },
         )
 
@@ -219,14 +216,20 @@ class UserUpdateView(View):
 
         user_form = UserUpdateForm(request.POST, instance=request.user)
         profile_form = ProfileUpdateForm(request.POST, instance=request.user.profile)
-        # Rasm uchun request.FILES juda muhim!
-        profile_pic_form = ProfilePictureForm(request.POST, request.FILES, instance=request.user.profile)
 
-        if user_form.is_valid() and profile_form.is_valid() and profile_pic_form.is_valid():
+        profile_pic_form = ProfilePictureForm(
+            request.POST, request.FILES, instance=request.user.profile
+        )
+
+        if (
+            user_form.is_valid()
+            and profile_form.is_valid()
+            and profile_pic_form.is_valid()
+        ):
             user_form.save()
             profile_form.save()
             profile_pic_form.save()
-            
+
             messages.success(request, "Barcha ma'lumotlar muvaffaqiyatli saqlandi!")
             return redirect("profile", request.user.id)
 
@@ -238,9 +241,6 @@ class UserUpdateView(View):
         return render(request, "pages/update/update_user.html", context)
 
 
-
-
-
 class PostLikeView(LoginRequiredMixin, View):
     def post(self, request, pk):
         post = get_object_or_404(PostNews, id=pk)
@@ -250,23 +250,23 @@ class PostLikeView(LoginRequiredMixin, View):
             post.likes.add(request.user)
         return redirect(request.META.get("HTTP_REFERER", "home"))
 
+
 class PostDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = PostNews
-    success_url = reverse_lazy('home')
+    success_url = reverse_lazy("home")
     template_name = "pages/update/post_confirm_delete.html"
 
     def test_func(self):
         post = self.get_object()
-        # Adminlar hamma narsani o'chira olishi uchun request.user.is_superuser qo'shish mumkin
+
         return self.request.user == post.user or self.request.user.is_superuser
 
     def handle_no_permission(self):
-        # 403 xatosi o'rniga xabar bilan qaytarib yuboramiz
+
         messages.error(self.request, "Sizda bu postni o'chirish huquqi yo'q!")
-        return redirect('home')
-    
-    
-    
+        return redirect("home")
+
+
 class PostEditView(View):
 
     def get(self, request, pk):

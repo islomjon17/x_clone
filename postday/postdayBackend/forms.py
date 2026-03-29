@@ -21,21 +21,17 @@ class PostNewsForm(forms.ModelForm):
         exclude = ("user",)
 
 
-class LoginForm(forms.ModelForm):
+class LoginForm(forms.Form):  # ModelForm emas, oddiy Form!
+    username = forms.CharField(
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Username"}
+        )
+    )
     password = forms.CharField(
         widget=forms.PasswordInput(
             attrs={"class": "form-control", "placeholder": "Password"}
         )
     )
-
-    class Meta:
-        model = User
-        fields = ["username"]
-        widgets = {
-            "username": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Username"}
-            )
-        }
 
     def clean(self):
         cleaned_data = super().clean()
@@ -46,6 +42,8 @@ class LoginForm(forms.ModelForm):
             user = authenticate(username=username, password=password)
             if user is None:
                 raise forms.ValidationError("Login yoki parol xato")
+            if not user.is_active:
+                raise forms.ValidationError("Akkaunt faol emas")
             self.user = user
         return cleaned_data
 

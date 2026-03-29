@@ -1,4 +1,6 @@
 # api/views/auth_views.py
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
+from drf_spectacular.types import OpenApiTypes
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -69,23 +71,49 @@ class LogoutAPIView(APIView):
             token.blacklist()
             return Response({"detail": "Chiqildi"}, status=status.HTTP_200_OK)
         except Exception:
-            return Response({"detail": "Token xato"}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(
+                {"detail": "Token xato"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+
 class PostListCreateAPIView(APIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
+    @extend_schema(
+        tags=["Posts"],
+        summary="Postlar ro'yxati",
+        parameters=[
+            OpenApiParameter(
+                name="q",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Post matni bo'yicha qidiruv",
+                required=False,
+            )
+        ],
+        responses={200: PostSerializer(many=True)},
+    )
     def get(self, request):
         query = request.GET.get("q", "")
         if query:
-            posts = PostNews.objects.filter(
-                Q(body__icontains=query)
-            ).order_by("-created_at")
+            posts = PostNews.objects.filter(Q(body__icontains=query)).order_by(
+                "-created_at"
+            )
         else:
             posts = PostNews.objects.all().order_by("-created_at")
 
         serializer = PostSerializer(posts, many=True, context={"request": request})
         return Response(serializer.data)
 
+    @extend_schema(
+        tags=["Posts"],
+        summary="Yangi post yaratish",
+        request=PostSerializer,
+        responses={
+            201: PostSerializer,
+            400: OpenApiResponse(description="Validation xatosi"),
+        },
+    )
     def post(self, request):
         serializer = PostSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
@@ -110,11 +138,10 @@ class PostDetailAPIView(APIView):
         post = get_object_or_404(PostNews, pk=pk)
         # Faqat owner yoki superuser o'zgartira oladi
         if post.user != request.user and not request.user.is_superuser:
-            return Response(
-                {"detail": "Ruxsat yo'q"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        serializer = PostSerializer(post, data=request.data, context={"request": request})
+            return Response({"detail": "Ruxsat yo'q"}, status=status.HTTP_403_FORBIDDEN)
+        serializer = PostSerializer(
+            post, data=request.data, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -123,10 +150,7 @@ class PostDetailAPIView(APIView):
     def delete(self, request, pk):
         post = get_object_or_404(PostNews, pk=pk)
         if post.user != request.user and not request.user.is_superuser:
-            return Response(
-                {"detail": "Ruxsat yo'q"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({"detail": "Ruxsat yo'q"}, status=status.HTTP_403_FORBIDDEN)
         post.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -142,18 +166,17 @@ class PostLikeAPIView(APIView):
         else:
             post.likes.add(request.user)
             liked = True
-        return Response({
-            "liked": liked,
-            "total_likes": post.total_likes()
-        })
-        
-        
+        return Response({"liked": liked, "total_likes": post.total_likes()})
+
+
 class ProfileListAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         profiles = Profile.objects.exclude(user=request.user).select_related("user")
-        serializer = ProfileSerializer(profiles, many=True, context={"request": request})
+        serializer = ProfileSerializer(
+            profiles, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
 
@@ -183,20 +206,24 @@ class ProfileFollowAPIView(APIView):
         else:
             return Response(
                 {"detail": "action: 'follow' yoki 'unfollow' bo'lishi kerak"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response({
-            "following": following,
-            "followers_count": profile.followed_by.count() - 1,
-        })
+        return Response(
+            {
+                "following": following,
+                "followers_count": profile.followed_by.count() - 1,
+            }
+        )
 
 
 class MeAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        serializer = ProfileSerializer(request.user.profile, context={"request": request})
+        serializer = ProfileSerializer(
+            request.user.profile, context={"request": request}
+        )
         return Response(serializer.data)
 
     def patch(self, request):
@@ -204,7 +231,7 @@ class MeAPIView(APIView):
             request.user.profile,
             data=request.data,
             partial=True,
-            context={"request": request}
+            context={"request": request},
         )
         if serializer.is_valid():
             serializer.save()

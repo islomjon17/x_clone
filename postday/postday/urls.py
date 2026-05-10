@@ -13,7 +13,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("postdayBackend.urls")),
     path("messages/", include("chatapp.urls")),
-    path("api/", include("postdayAPI.urls")),
+    path("api/chat/", include("chatapp.api_urls")),
+    path("api/post/", include("postdayAPI.urls")),
     path(
         "api/schema/",
         SpectacularAPIView.as_view(permission_classes=[AllowAny]),
